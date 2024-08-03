@@ -1,106 +1,42 @@
-from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackContext, ConversationHandler, MessageHandler, filters
+import logging
+import os
+from dotenv import load_dotenv
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# توکن ربات و ID اپراتور
-TOKEN = '7390416084:AAHRxrg_ipck3DCnwXOyGYRaWlCp2UBJF1Y'
-OPERATOR_CHAT_ID = '6548746173'
+# بارگذاری متغیرهای محیطی از فایل .env
+load_dotenv()
 
-# مراحل مکالمه
-LOGIN, WAITING_PASSWORD, MENU, NEW_ORDER, ORDER_HISTORY, POST_NEW = range(6)
+# تنظیمات توکن و شناسه چت
+TOKEN = os.getenv("TOKEN")
+OPERATOR_CHAT_ID = os.getenv("OPERATOR_CHAT_ID")
 
-# داده‌های نمونه برای سفارشات
-orders = []
+if not TOKEN:
+    raise ValueError("توکن بات در فایل .env مشخص نشده است.")
+if not OPERATOR_CHAT_ID:
+    raise ValueError("شناسه چت اپراتور در فایل .env مشخص نشده است.")
 
-# دکمه‌های منو
-MENU_BUTTONS = {
-    'سفارش جدید': 'new_order',
-    'تاریخچه سفارشات': 'order_history',
-    'پست کردن مطلب جدید': 'post_new'
-}
+# تنظیمات لاگینگ
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# تابع شروع
-async def start(update: Update, context: CallbackContext) -> int:
-    await update.message.reply_text(
-        "لطفا نام کاربری را وارد کنید.",
-        reply_markup=ReplyKeyboardMarkup([['/cancel']], one_time_keyboard=True)
-    )
-    return LOGIN
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('سلام! من بات شما هستم.')
 
-# تابع ورود - نام کاربری
-async def login_username(update: Update, context: CallbackContext) -> int:
-    context.user_data['username'] = update.message.text
-    await update.message.reply_text("لطفا رمز عبور را وارد کنید.")
-    return WAITING_PASSWORD
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('عملیات لغو شد.')
 
-# تابع ورود - رمز عبور
-async def login_password(update: Update, context: CallbackContext) -> int:
-    username = context.user_data.get('username')
-    password = update.message.text
-    if username == 'admin' and password == 'pass':
-        keyboard = [[KeyboardButton(text=btn)] for btn in MENU_BUTTONS.keys()]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-        await update.message.reply_text("به پنل مدیریت خوش آمدید. لطفاً یکی از گزینه‌ها را انتخاب کنید.", reply_markup=reply_markup)
-        return MENU
-    else:
-        await update.message.reply_text("نام کاربری یا رمز عبور نادرست است. لطفاً دوباره تلاش کنید.")
-        return LOGIN
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text('برای کمک به من پیام بدهید.')
 
-# تابع منو
-async def menu(update: Update, context: CallbackContext) -> int:
-    query = update.message.text
-    if query == 'سفارش جدید':
-        await update.message.reply_text("در حال نمایش سفارشات جدید...")
-        return NEW_ORDER
-    elif query == 'تاریخچه سفارشات':
-        await update.message.reply_text("در حال نمایش تاریخچه سفارشات...")
-        return ORDER_HISTORY
-    elif query == 'پست کردن مطلب جدید':
-        await update.message.reply_text("لطفا متن مطلب جدید را وارد کنید.")
-        return POST_NEW
-    else:
-        await update.message.reply_text("گزینه نامعتبر است.")
-        return MENU
-
-# تابع نمایش سفارش جدید
-async def new_order(update: Update, context: CallbackContext) -> int:
-    # در اینجا باید منطق برای نمایش سفارشات جدید اضافه شود
-    await update.message.reply_text("این بخش برای نمایش و مدیریت سفارشات جدید است.")
-    return MENU
-
-# تابع نمایش تاریخچه سفارشات
-async def order_history(update: Update, context: CallbackContext) -> int:
-    if orders:
-        history = '\n'.join(orders)
-        await update.message.reply_text(f"تاریخچه سفارشات:\n{history}")
-    else:
-        await update.message.reply_text("هیچ سفارشی ثبت نشده است.")
-    return MENU
-
-# تابع پست کردن مطلب جدید
-async def post_new(update: Update, context: CallbackContext) -> int:
-    text = update.message.text
-    # در اینجا باید منطق برای پست کردن مطلب جدید اضافه شود
-    await update.message.reply_text(f"مطلب جدید شما ثبت شد:\n{text}")
-    return MENU
-
-# تابع اصلی
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
-    
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            LOGIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_username)],
-            WAITING_PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, login_password)],
-            MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, menu)],
-            NEW_ORDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_order)],
-            ORDER_HISTORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, order_history)],
-            POST_NEW: [MessageHandler(filters.TEXT & ~filters.COMMAND, post_new)],
-        },
-        fallbacks=[],
-    )
 
-    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(CommandHandler("help", help_command))
+
+    logger.info("بات در حال اجرا است...")
     application.run_polling()
 
 if __name__ == '__main__':
